@@ -8,9 +8,13 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mukmuk.app"
+      "bundleIdentifier": "com.mukmuk.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.mukmuk.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFD43B",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -23,6 +27,12 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5670feae-ac6a-4b77-8d5d-4c6eb5329a58"
+      }
+    },
+    "owner": "yunnhho"
   }
 }
