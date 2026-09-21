@@ -16,8 +16,8 @@ assert(matchesFilter(떡볶이, { 종류: ['분식'], 맛: ['매콤'] }));
 assert(!matchesFilter(떡볶이, { 종류: ['분식'], 맛: ['순한'] }));
 // 모든 음식의 태그가 필터 목록 안에 있어야 함 (오타 방지)
 for (const f of FOODS) {
-  assert(GROUPS.종류.includes(f.cat), f.name + ' cat=' + f.cat);
-  assert(GROUPS.맛.includes(f.taste), f.name + ' taste=' + f.taste);
-  assert(GROUPS.형태.includes(f.form), f.name + ' form=' + f.form);
+  assert(GROUPS.종류.includes(f.종류), f.name + ' 종류=' + f.종류);
+  assert(GROUPS.맛.includes(f.맛), f.name + ' 맛=' + f.맛);
+  assert(GROUPS.형태.includes(f.형태), f.name + ' 형태=' + f.형태);
 }
 console.log('ok', FOODS.length, '메뉴');

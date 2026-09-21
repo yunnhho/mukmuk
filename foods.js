@@ -1,6 +1,6 @@
 // 겹치는 메뉴는 한 항목으로 묶어서 저장 (떡볶이/라볶이, 짜장면/짬뽕 ...)
-// f(이름, 이모지, 종류, 맛, 형태)
-const f = (name, emoji, cat, taste, form) => ({ name, emoji, cat, taste, form });
+// f(이름, 이모지, 종류, 맛, 형태) — 키가 GROUPS 이름과 같아서 food[그룹]으로 바로 조회
+const f = (name, emoji, 종류, 맛, 형태) => ({ name, emoji, 종류, 맛, 형태 });
 
 export const GROUPS = {
   종류: ['한식', '분식', '중식', '일식', '양식', '아시안', '패스트푸드'],
@@ -57,5 +57,5 @@ export const FOODS = [
 export const matchesFilter = (food, picked) =>
   Object.keys(GROUPS).every((g) => {
     const on = picked[g] || [];
-    return on.length === 0 || on.includes(food[{ 종류: 'cat', 맛: 'taste', 형태: 'form' }[g]]);
+    return on.length === 0 || on.includes(food[g]);
   });
