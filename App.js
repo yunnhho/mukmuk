@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Animated, Easing, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,18 @@ const Chip = ({ label, on, onPress, a11y }) => (
 const Back = ({ onPress }) => (
   <Pressable onPress={onPress} style={s.back} hitSlop={12} accessibilityRole="button" accessibilityLabel="뒤로">
     <Text style={s.backText}>←</Text>
+  </Pressable>
+);
+
+// 이름이 'A/B'면 A로 검색. 카카오맵 앱이 있으면 앱으로, 없으면 웹으로 열림
+const MapLink = ({ name }) => (
+  <Pressable
+    onPress={() => Linking.openURL(`https://map.kakao.com/link/search/${encodeURIComponent(name.split('/')[0])}`).catch(() => {})}
+    style={[s.link, { alignSelf: 'center' }]}
+    accessibilityRole="link"
+    accessibilityLabel={`카카오맵에서 ${name} 근처 식당 찾기`}
+  >
+    <Text style={s.linkText}>📍 카카오맵에서 찾기</Text>
   </Pressable>
 );
 
@@ -240,6 +252,7 @@ function Spin({ pool, onBack }) {
           <Text style={s.hint}>{running ? '꾹 누르고 있으면 멈춰요' : '손을 떼면 다시 돌아가요'}</Text>
         </Pressable>
       )}
+      {n > 0 && <MapLink name={at(0).name} />}
     </SafeAreaView>
   );
 }
@@ -297,6 +310,7 @@ function Game({ kind, pool, onBack }) {
             <Text style={s.emoji}>{won.emoji}</Text>
             <Text style={s.name} numberOfLines={1} adjustsFontSizeToFit>{won.name}</Text>
           </View>
+          <MapLink name={won.name} />
           <Pressable
             onPress={() => { setWon(null); setRound((r) => r + 1); }}
             accessibilityRole="button"
