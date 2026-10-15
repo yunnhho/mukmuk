@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Easing, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Animated, Easing, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -42,15 +42,24 @@ const Back = ({ onPress }) => (
   </Pressable>
 );
 
-// 이름이 'A/B'면 A로 검색. 카카오맵 앱이 있으면 앱으로, 없으면 웹으로 열림
+// 이름이 'A/B'면 A로 검색. 네이버 지도 앱이 있으면 앱으로, 없으면(또는 웹이면) 웹 지도로 열림
+const openNaverMap = (name) => {
+  const q = encodeURIComponent(name.split('/')[0]);
+  const web = `https://map.naver.com/p/search/${q}`;
+  if (Platform.OS === 'web') return Linking.openURL(web).catch(() => {});
+  Linking.openURL(`nmap://search?query=${q}&appname=com.mukmuk.app`)
+    .catch(() => Linking.openURL(web))
+    .catch(() => {});
+};
+
 const MapLink = ({ name }) => (
   <Pressable
-    onPress={() => Linking.openURL(`https://map.kakao.com/link/search/${encodeURIComponent(name.split('/')[0])}`).catch(() => {})}
+    onPress={() => openNaverMap(name)}
     style={[s.link, { alignSelf: 'center' }]}
     accessibilityRole="link"
-    accessibilityLabel={`카카오맵에서 ${name} 근처 식당 찾기`}
+    accessibilityLabel={`네이버 지도에서 ${name} 근처 식당 찾기`}
   >
-    <Text style={s.linkText}>📍 카카오맵에서 찾기</Text>
+    <Text style={s.linkText}>📍 네이버 지도에서 찾기</Text>
   </Pressable>
 );
 
@@ -336,19 +345,34 @@ const GameHead = ({ title, hint }) => (
   </View>
 );
 
-const RUNNER = 36; // 경주 이모지 폭. 결승선을 넘지 않게 이만큼 당겨서 그림
+const RUNNER = 40; // 경주 주자 칸 높이. 결승선을 넘지 않게 이만큼 빼고 그림
+
+// 결승선 체크무늬 2줄
+const Checker = () => (
+  <View>
+    {[0, 1].map((r) => (
+      <View key={r} style={s.row0}>
+        {Array.from({ length: 24 }, (_, c) => (
+          <View key={c} style={[s.checkCell, (r + c) % 2 === 0 && s.checkInk]} />
+        ))}
+      </View>
+    ))}
+  </View>
+);
 
 function Race({ items, onWin }) {
-  const [pos, setPos] = useState(() => items.map(() => 0));
+  const [st, setSt] = useState(() => ({ p: items.map(() => 0), t: 0 }));
   const [go, setGo] = useState(false);
   const [first, setFirst] = useState(-1);
+  const [trackH, setTrackH] = useState(0);
 
-  // 메뉴마다 속도가 계속 조금씩 바뀌어서 역전이 일어남
+  // 메뉴마다 속도가 계속 조금씩 바뀌어서 역전이 일어남. 1등이 들어오기까지 7~10초
   useEffect(() => {
     if (!go) return;
-    const v = items.map(() => 0.15 + Math.random() * 0.1);
+    const v = items.map(() => 0.085 + Math.random() * 0.055);
     let p = items.map(() => 0);
-    let last = Date.now();
+    const start = Date.now();
+    let last = start;
     let id;
     let done;
     const tick = () => {
@@ -356,14 +380,14 @@ function Race({ items, onWin }) {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       p = p.map((x, i) => {
-        v[i] = Math.min(0.35, Math.max(0.08, v[i] + (Math.random() - 0.5) * 4 * dt));
+        v[i] = Math.min(0.2, Math.max(0.045, v[i] + (Math.random() - 0.5) * 2.3 * dt));
         return x + v[i] * dt;
       });
-      setPos(p);
+      setSt({ p, t: (now - start) / 1000 });
       const best = p.indexOf(Math.max(...p));
       if (p[best] >= 1) {
         setFirst(best);
-        done = setTimeout(() => onWin(items[best]), 1000);
+        done = setTimeout(() => onWin(items[best]), 1200);
         return;
       }
       id = requestAnimationFrame(tick);
@@ -372,29 +396,63 @@ function Race({ items, onWin }) {
     return () => { cancelAnimationFrame(id); clearTimeout(done); };
   }, [go]);
 
+  const running = go && first < 0;
+  const lead = Math.max(...st.p);
+
   return (
-    <ScrollView contentContainerStyle={s.pad}>
-      <GameHead title="🏁 경주" hint="1등으로 결승선에 들어온 메뉴가 당첨!" />
-      {items.map((f, i) => {
-        const x = Math.min(pos[i], 1);
-        return (
-          <View key={i} style={s.lane}>
-            <Text style={[s.laneName, first === i && s.winText]} numberOfLines={1}>{f.name}</Text>
-            <View style={[s.track, first === i && s.trackWin]}>
-              <Text style={[s.runner, { left: `${x * 100}%`, marginLeft: -x * RUNNER }]}>{f.emoji}</Text>
+    <View style={s.flex}>
+      <View style={s.padX}>
+        <GameHead title="🏇 경주" hint="1등으로 결승선에 들어온 메뉴가 당첨!" />
+      </View>
+      <View style={[s.flex, s.padX]}>
+        <View style={s.raceTrack}>
+          <Checker />
+          <View style={s.flex} onLayout={(e) => setTrackH(e.nativeEvent.layout.height)}>
+            <View style={[StyleSheet.absoluteFill, s.row0]}>
+              {items.map((f, i) => {
+                const x = Math.min(st.p[i], 1);
+                // 말이 달리듯 통통 튀고 앞뒤로 흔들림. 레인마다 박자를 엇갈리게
+                const ph = st.t * 14 + i * 1.7;
+                return (
+                  <View key={i} style={[s.raceLane, i > 0 && s.raceLine, first === i && s.raceWin]}>
+                    <View
+                      style={[s.runnerBox, {
+                        bottom: x * Math.max(trackH - RUNNER, 0),
+                        transform: running
+                          ? [{ translateY: -Math.abs(Math.sin(ph)) * 8 }, { rotate: `${Math.sin(ph) * 10}deg` }]
+                          : [],
+                      }]}
+                    >
+                      {running && st.p[i] === lead && <Text style={s.crown}>👑</Text>}
+                      <Text style={s.runner}>{f.emoji}</Text>
+                      {running && <Text style={s.dust}>💨</Text>}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </View>
-        );
-      })}
-      <Pressable
-        disabled={go}
-        onPress={() => setGo(true)}
-        accessibilityRole="button"
-        style={({ pressed }) => [s.cta, s.gap, go && s.ctaOff, pressed && s.pressed]}
-      >
-        <Text style={[s.ctaText, go && s.ctaTextOff]}>{go ? '달리는 중…' : '출발!'}</Text>
-      </Pressable>
-    </ScrollView>
+          <View style={s.startLine} />
+        </View>
+        <View style={s.row0}>
+          {items.map((f, i) => (
+            <Text key={i} style={[s.raceName, first === i && s.winText]} numberOfLines={2}>
+              {f.name.split('/')[0]}
+            </Text>
+          ))}
+        </View>
+      </View>
+      <View style={s.padX}>
+        <Pressable
+          disabled={go}
+          onPress={() => setGo(true)}
+          accessibilityRole="button"
+          style={({ pressed }) => [s.cta, s.gap, s.raceBtn, go && s.ctaOff, pressed && s.pressed]}
+        >
+          <Text style={[s.ctaText, go && s.ctaTextOff]}>{go ? '달리는 중…' : '출발!'}</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -478,13 +536,14 @@ function Ladder({ items, onWin }) {
 const WHEEL_SPEED = 0.12; // 도/ms. 한 바퀴 3초
 const DART_W = 56; // 잡는 영역 폭. 다트 끝(맨 위 가운데)이 맞는 점
 const DART_H = 80;
-// ponytail: 던지는 세기 보정값(손가락 속도 px/ms → 날아가는 거리 px). 기기마다 손맛이 다르면 이 숫자만 조절
-const POWER = 220;
+const HAND = 60; // 손으로 끌어올릴 수 있는 최대 높이. 판까지 끌고 가서 꽂지 못하게
+// ponytail: 판 정중앙에 닿는 손가락 속도(px/ms). 기기마다 손맛이 다르면 이 숫자만 조절
+const AIM_SPEED = 2.2;
 
 function Dart({ items, onWin }) {
   const n = items.length;
   const [geo, setGeo] = useState(null);
-  const [msg, setMsg] = useState('다트를 잡고 아래에서 위로 휙 던져요');
+  const [msg, setMsg] = useState('다트를 위로 휙! 세게 던질수록 멀리 날아가요');
   const g = useRef(null); // PanResponder는 처음 한 번 만들어지니 최신 값은 ref로
   const rot = useRef(new Animated.Value(0)).current;
   const angle = useRef(0);
@@ -531,20 +590,25 @@ function Dart({ items, onWin }) {
     const speed = Math.hypot(vx, vy);
     if (!g.current || vy > -0.3) return home(); // 위로 던진 게 아니면 제자리로
     busy.current = true;
-    const dist = speed * POWER;
-    const tx = d.dx + (vx / speed) * dist;
-    const ty = d.dy + (vy / speed) * dist;
+    const { cx, cy, ox, oy, R } = g.current;
+    // 포켓몬 고처럼 손 떼는 순간의 세기로만 거리가 정해짐. 제곱이라 세기 차이가 거리 차이로 크게 벌어짐
+    const rx = d.dx;
+    const ry = Math.max(d.dy, -HAND);
+    const dist = (oy + ry - cy) * (speed / AIM_SPEED) ** 2;
+    const tx = rx + (vx / speed) * dist;
+    const ty = ry + (vy / speed) * dist;
     const a = (Math.atan2(vx, -vy) * 180) / Math.PI; // 날아가는 방향으로 다트 끝을 돌림
+    const dur = 250 + Math.min(dist, 800) * 0.5;
     Animated.parallel([
-      anim(pos, { x: tx, y: ty }, 350, Easing.out(Easing.quad)),
+      anim(pos, { x: tx, y: ty }, dur, Easing.out(Easing.quad)),
       anim(tilt, a, 120),
-      anim(size, 0.6, 350),
+      // 포물선처럼 살짝 떠올랐다가 멀어짐
+      Animated.sequence([anim(size, 1.15, dur * 0.3), anim(size, 0.6, dur * 0.7)]),
     ]).start(() => {
-      const { cx, cy, ox, oy, R } = g.current;
       const dx = ox + tx - cx;
       const dy = oy + ty - cy;
       if (Math.hypot(dx, dy) > R) {
-        setMsg('빗나갔어요! 다시 던져요');
+        setMsg(Math.abs(dx) > R ? '옆으로 빗나갔어요! 다시 던져요' : dy > 0 ? '힘이 부족해요! 조금 더 세게' : '너무 세요! 조금 살살');
         Animated.parallel([
           anim(pos.y, ty + 120, 400, Easing.in(Easing.quad)),
           anim(tilt, a + 160, 400),
@@ -573,7 +637,7 @@ function Dart({ items, onWin }) {
     onMoveShouldSetPanResponder: () => !busy.current,
     onPanResponderGrant: () => { trail.current = []; },
     onPanResponderMove: (_, d) => {
-      pos.setValue({ x: d.dx, y: d.dy });
+      pos.setValue({ x: d.dx, y: Math.max(d.dy, -HAND) });
       trail.current = [...trail.current.slice(-9), { x: d.dx, y: d.dy, t: Date.now() }];
     },
     onPanResponderRelease: (_, d) => fling(d),
@@ -817,14 +881,21 @@ const s = StyleSheet.create({
     backgroundColor: C.paper, borderWidth: 3, borderColor: C.red, borderRadius: 20,
   },
 
-  lane: { marginBottom: 10 },
-  laneName: { color: C.ink, fontSize: 13, fontWeight: '700', marginBottom: 4 },
-  track: {
-    height: 46, justifyContent: 'center', backgroundColor: C.paper, borderRadius: 10,
-    borderWidth: 2, borderColor: C.ink, borderRightWidth: 6, borderRightColor: C.red,
+  raceTrack: {
+    flex: 1, backgroundColor: C.paper, borderRadius: 10, borderWidth: 2, borderColor: C.ink, overflow: 'hidden',
   },
-  trackWin: { borderColor: C.red },
-  runner: { position: 'absolute', width: RUNNER, textAlign: 'center', fontSize: 28 },
+  checkCell: { flex: 1, height: 8, backgroundColor: C.paper },
+  checkInk: { backgroundColor: C.ink },
+  startLine: { height: 4, backgroundColor: C.red },
+  raceLane: { flex: 1 },
+  raceLine: { borderLeftWidth: 1, borderLeftColor: C.muted, borderStyle: 'dashed' },
+  raceWin: { backgroundColor: C.bg },
+  runnerBox: { position: 'absolute', left: 0, right: 0, height: RUNNER, alignItems: 'center', justifyContent: 'center' },
+  runner: { fontSize: 30 },
+  crown: { position: 'absolute', top: -14, fontSize: 14 },
+  dust: { position: 'absolute', top: RUNNER - 8, fontSize: 14, opacity: 0.6, transform: [{ rotate: '-90deg' }] },
+  raceName: { flex: 1, color: C.ink, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 6, paddingHorizontal: 2 },
+  raceBtn: { marginBottom: 16 },
 
   ladder: { alignSelf: 'center' },
   row0: { flexDirection: 'row' },
